@@ -1,164 +1,87 @@
-# Ejemplo de OData con Spring Boot y Java 11 - Clean Architecture
+# OData Demo - Spring Boot & Clean Architecture
 
-Este proyecto implementa un servicio OData V4 usando **Spring Boot con @RestController** siguiendo los principios de **Clean Architecture** y **Clean Code**.
+This project implements an **OData V4 Gateway** using **Spring Boot (@RestController)** following **Clean Architecture** principles. It orchestrates calls to multiple simulated data sources (microservices).
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
-El proyecto está estructurado en **capas claramente separadas**:
+The project is structured into clearly separated layers:
 
-- **Domain**: Entidades y contratos (sin dependencias externas)
-- **Application**: Casos de uso y lógica de negocio
-- **Infrastructure**: Implementaciones técnicas (repositorios, OData processors)
-- **Presentation**: API REST (@RestController)
+-   **Domain**: Pure entities and repository contracts (no external dependencies).
+-   **Application**: Use cases (e.g., `GetProductsUseCase`) and orchestration logic (`ODataQueryService`).
+-   **Infrastructure**: Technical implementations such as In-Memory repositories and OData filter processing.
+-   **Presentation**: REST API via `@RestController` (`ODataController`).
 
-Ver documentación completa en: [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md)
+### Dependency Rule
+Dependencies point inwards: **Presentation → Application → Domain** and **Infrastructure → Domain**.
 
-## 🚀 Cómo ejecutar
+---
 
-1. Ejecuta la aplicación:
-   ```bash
-   mvn spring-boot:run
-   ```
+## 📋 Prerequisites
 
-2. El servicio estará disponible en: `http://localhost:8080/odata/`
+-   **Java 11** or higher
+-   **Maven 3.6+**
 
-## 📖 Ejemplos de uso
+---
 
-### 1. Obtener todos los productos (Select All implícito)
-```
-http://localhost:8080/odata/Products
-```
+## 🚀 Getting Started
 
-### 2. Seleccionar campos específicos ($select)
-Solo devuelve ID y Precio.
-```
-http://localhost:8080/odata/Products?$select=ID,Price
-```
+1.  **Run the application**:
+    ```bash
+    mvn spring-boot:run
+    ```
+2.  **Service available at**: `http://localhost:8080/odata/`
 
-### 3. Filtro Igualdad (eq)
-Productos con precio igual a 150.
-```
-http://localhost:8080/odata/Products?$filter=Price eq 150
-```
+---
 
-### 4. Filtro Mayor que (gt) y Menor que (lt)
-```
-http://localhost:8080/odata/Products?$filter=Price gt 50
-http://localhost:8080/odata/Products?$filter=Price lt 100
-```
+## 📖 API Usage Examples (OData V4)
 
-### 5. Contiene (Like aproximado)
-Productos que contienen 'Mouse' en el nombre.
-```
-http://localhost:8080/odata/Products?$filter=contains(Name,'Mouse')
-```
+### 1. Read Operations (GET)
 
-## 🔗 Relaciones y Microservicios (Simulado)
+| Feature | Endpoint |
+| :--- | :--- |
+| **All Products** | `/odata/Products` |
+| **Selection** | `/odata/Products?$select=Name,Price` |
+| **Filtering** | `/odata/Products?$filter=Price gt 100` |
+| **Expansion** | `/odata/Products?$expand=Brand` (Orchestrates calls to Brand Service) |
+| **Metadata** | `/odata/$metadata` |
 
-La entidad `Brand` (Marca) está relacionada con `Product` (N:1).
-El servicio simula llamadas a microservicios **solo cuando se solicita la expansión**.
-
-### 6. Obtener Marcas (Directo)
-Llama al "microservicio" de marcas.
-```
-http://localhost:8080/odata/Brands
-```
-
-### 7. Expandir Marca en Productos ($expand) - ORQUESTACIÓN
-Aquí ocurre la **orquestación**. El controlador:
-1. Recupera todos los productos (llamada al servicio de Productos)
-2. Por cada producto, hace una llamada al servicio de Marcas
-3. Combina los datos y los devuelve
-
-```
-http://localhost:8080/odata/Products?$expand=Brand
-```
-
-### 8. Seleccionar y Expandir
-Optimización: Traer solo nombre del producto y la marca completa.
-```
-http://localhost:8080/odata/Products?$select=Name&$expand=Brand
-```
-
-### 9. Consulta compleja combinada
-```
-http://localhost:8080/odata/Products?$expand=Brand&$select=Name,Price&$filter=Price lt 200
-```
-
-## ✍️ Crear Productos (POST)
-
-### 10. Crear un nuevo producto
-Endpoint para crear productos siguiendo el estándar OData.
-
-**Request:**
+**Example with curl**:
 ```bash
-POST http://localhost:8080/odata/Products
-Content-Type: application/json
+curl "http://localhost:8080/odata/Products?\$expand=Brand&\$select=Name,Price&\$filter=Price%20lt%20200"
+```
 
+### 2. Create Operations (POST)
+
+**Endpoint**: `POST /odata/Products`
+
+**Request Body**:
+```json
 {
-  "Name": "New Gaming Laptop",
-  "Description": "High-performance gaming laptop with RTX 4080",
+  "Name": "Gaming Laptop",
+  "Description": "High-performance laptop",
   "Price": 1899.99,
   "BrandID": 1
 }
 ```
 
-**Response (201 Created):**
-```json
-{
-  "@odata.context": "/odata/$metadata#Products/$entity",
-  "value": {
-    "ID": 7,
-    "Name": "New Gaming Laptop",
-    "Description": "High-performance gaming laptop with RTX 4080",
-    "Price": 1899.99,
-    "BrandID": 1
-  }
-}
-```
-
-**Con curl:**
+**curl Command**:
 ```bash
 curl -X POST http://localhost:8080/odata/Products \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "New Gaming Laptop",
-    "Description": "High-performance gaming laptop with RTX 4080",
-    "Price": 1899.99,
-    "BrandID": 1
-  }'
+  -d '{"Name":"New Item","Price":99.99,"BrandID":1}'
 ```
 
-### Validación
+---
 
-El servicio genera automáticamente el ID y persiste el producto en el repositorio (en memoria para esta demo).
+## 🧪 Testing
 
-## 📊 Entidades
+-   **Unit Tests**: Located in `src/test/java`, testing use cases without Spring dependency.
+-   **Integration Tests**: Testing the full OData flow via `MockMvc` in `ODataControllerIntegrationTest`.
 
-### Product
-- ID: int
-- Name: string
-- Description: string  
-- Price: double
-- BrandID: int
-- **Navigation**: Brand
+---
 
-### Brand
-- ID: int
-- Name: string
-- Country: string
+## 🛠️ Key Technical Details
 
-## 🧪 Verificar Logs de Microservicios
-
-Al ejecutar consultas, verás en la consola logs como:
-```
-📦 [Product Microservice] Fetching all products
-🏷️  [Brand Microservice] Fetching brand ID: 1
-```
-
-Esto demuestra la **orquestación selectiva**: el servicio de Brands solo se llama cuando usas `$expand=Brand`.
-
-## 📚 Documentación Adicional
-
-- [CLEAN_ARCHITECTURE.md](CLEAN_ARCHITECTURE.md) - Documentación completa de la arquitectura
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Documentación de la implementación anterior con Olingo
+-   **Selective Orchestration**: The `ODataQueryService` only calls the Brand microservice if `$expand=Brand` is requested.
+-   **Clean Implementation**: Unlike standard Olingo setups that use Servlets, this uses `@RestController` for better testability and Spring ecosystem integration.
+-   **Repository Pattern**: Simulates microservices via `InMemoryProductRepository` and `InMemoryBrandRepository`.
